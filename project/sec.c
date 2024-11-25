@@ -15,18 +15,18 @@ void init_sec(int initial_state) {
     state_sec = initial_state;
     init_io();
 
-    /* if (state_sec == CLIENT_CLIENT_HELLO_SEND) { */
-    /*     generate_private_key(); */
-    /*     derive_public_key(); */
-    /*     derive_self_signed_certificate(); */
-    /*     load_ca_public_key("ca_public_key.bin"); */
-    /* } else if (state_sec == SERVER_CLIENT_HELLO_AWAIT) { */
-    /*     load_certificate("server_cert.bin"); */
-    /*     load_private_key("server_key.bin"); */
-    /*     derive_public_key(); */
-    /* } */
-    /*  */
-    /* generate_nonce(nonce, NONCE_SIZE); */
+    if (state_sec == CLIENT_CLIENT_HELLO_SEND) {
+        generate_private_key();
+        derive_public_key();
+        derive_self_signed_certificate();
+        load_ca_public_key("ca_public_key.bin");
+    } else if (state_sec == SERVER_CLIENT_HELLO_AWAIT) {
+        load_certificate("server_cert.bin");
+        load_private_key("server_key.bin");
+        derive_public_key();
+    }
+
+    generate_nonce(nonce, NONCE_SIZE);
 }
 
 ssize_t input_sec(uint8_t* buf, size_t max_length) {

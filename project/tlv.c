@@ -1,12 +1,13 @@
 #include "tlv.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
-TLV to_TLV(const uint8_t *message, size_t size) {
+TLV to_TLV_fromMessage(const uint8_t *message, size_t size) {
     // Init tlv:
     TLV tlv;
     // Ensure sufficient data to parse TLV:
-    if (message == NULL || size < 3) {
+    if (size < 3) {
         fprintf(stderr, "Error: Insufficient data to parse TLV.\n");
         exit(1);
     }
@@ -15,16 +16,23 @@ TLV to_TLV(const uint8_t *message, size_t size) {
     // Extract length (2 bytes, little-endian):
     tlv.length = (size_t)(message[1] | (message[2] << 8));
     // Ensure the length is within bounds:
-    if (tlv.length > 1009 || (3 + tlv.length) > size) {
+    if (tlv.length > 1009) {
         fprintf(stderr, "Error: TLV length out of bounds.\n");
         exit(1);
     }
-    // Extract value (length bytes)
-    memcpy(tlv.value, &message[3], tlv.length);
+    if ((3 + tlv.length) > size) {
+        fprintf(stderr, "Note: Insufficient data to parse TLV.\n");
+        tlv.valid = false;
+    }
+    else {
+        // Extract value (length bytes)
+        memcpy(tlv.value, &message[3], tlv.length);
+        tlv.valid = true;
+    }
     return tlv;
 }
 
-TLV to_TLV(uint8_t type, size_t length, const uint8_t *value) {
+TLV to_TLV_fromComponents(uint8_t type, size_t length, const uint8_t *value) {
     // Init tlv:
     TLV tlv;
     // Ensure the length is within bounds:
@@ -36,10 +44,11 @@ TLV to_TLV(uint8_t type, size_t length, const uint8_t *value) {
     tlv.type = type;
     tlv.length = length;
     memcpy(tlv.value, value, length);
+    tlv.valid = true;
     return tlv;
 }
 
-size_t to_RAW(TLV tlv, uint8_t *buffer) {
+size_t to_RAW_fromTLV(TLV tlv, uint8_t *buffer) {
     // Check buffer:
     if (buffer == NULL) {
         fprintf(stderr, "Error: NULL buffer passed to to_raw.\n");
@@ -53,5 +62,9 @@ size_t to_RAW(TLV tlv, uint8_t *buffer) {
     // Write value:
     memcpy(&buffer[3], tlv.value, tlv.length);
     // Return total size of the raw message:
+    return 3 + tlv.length;
+}
+
+size_t size(TLV tlv) {
     return 3 + tlv.length;
 }

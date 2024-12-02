@@ -42,11 +42,13 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         uint8_t nonce_RAW[1012] = {0};
         uint8_t hello_RAW[1012] = {0};
         // Make nonce raw:
-        TLV nonce_tlv = to_TLV_fromComponents(0x01, NONCE_SIZE, nonce);
+        TLV nonce_tlv = to_TLV_fromComponents(NONCE_CLIENT_HELLO, NONCE_SIZE, nonce);
         size_t nonce_size = to_RAW_fromTLV(nonce_tlv, nonce_RAW);
         // Make hello raw:
         TLV hello_tlv = to_TLV_fromComponents(CLIENT_HELLO, nonce_size, nonce_RAW);
         size_t hello_size = to_RAW_fromTLV(hello_tlv, hello_RAW);
+        // Print hello_tlv.length:
+        fprintf(stderr, "SEND LENGTH %zu\n", hello_tlv.length);
         // Print nonce:
         fprintf(stderr, "SEND NONCE ");
         for (size_t i = 0; i < NONCE_SIZE; i++) {
@@ -54,6 +56,7 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         }
         // Pass into input buffer:
         state_sec = CLIENT_SERVER_HELLO_AWAIT;
+
         memcpy(buf, hello_RAW, hello_size);
         return hello_size;
     }
@@ -61,43 +64,43 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         print("SEND SERVER HELLO");
 
         // Init raw messages:
-        uint8_t hello_RAW[1012] = {0}; // contains (1), (2), (3)
+        uint8_t hello_RAW[1012] = {0}; // contains the final tlv
+        uint8_t hello_value_RAW[1012] = {0}; // contains (1), (2), (3)
         uint8_t nonce_RAW[1012] = {0}; // (1)
         uint8_t cert_RAW[1012] = {0}; // (2)
-        uint8_t pubkey_RAW[1012] = {0}; // (2a)
-        uint8_t sign_RAW[1012] = {0}; // (2b)
         uint8_t nonce_sign_RAW[1012] = {0}; // (3)
         // Make nonce raw:
-        TLV nonce_tlv = to_TLV_fromComponents(0x01, NONCE_SIZE, nonce);
+        TLV nonce_tlv = to_TLV_fromComponents(NONCE_SERVER_HELLO, NONCE_SIZE, nonce);
         size_t nonce_size = to_RAW_fromTLV(nonce_tlv, nonce_RAW);
         // Make certificate raw:
-        TLV cert_tlv = to_TLV_fromComponents(0x02, cert_len, cert);
-        size_t cert_size = to_RAW_fromTLV(cert_tlv, cert_RAW);
-        // Make public key raw:
-        TLV pubkey_tlv = to_TLV_fromComponents(0x02a, pubkey_len, pubkey);
-        size_t pubkey_size = to_RAW_fromTLV(pubkey_tlv, pubkey_RAW);
-        // Make signature raw:
-        TLV sign_tlv = to_TLV_fromComponents(0x02b, sign_len, sign);
-        size_t sign_size = to_RAW_fromTLV(sign_tlv, sign_RAW);
+            // use cert_size and certificate (already done for us).
         // Make nonce signature raw:
-        TLV nonce_sign_tlv = to_TLV_fromComponents(0x03, sign_len, sign);
+            // sign peer_nonce using private key.
+        uint8_t nonce_sign_value_RAW[1012] = {0};
+        size_t nonce_sign_value_size = sign(peer_nonce, NONCE_SIZE, nonce_sign_value_RAW);
+        TLV nonce_sign_tlv = to_TLV_fromComponents(NONCE_SIGNATURE_SERVER_HELLO, nonce_sign_value_size, nonce_sign_value_RAW);
         size_t nonce_sign_size = to_RAW_fromTLV(nonce_sign_tlv, nonce_sign_RAW);
-        // Concatenate all:
-        size_t hello_size = 0;
-        memcpy(hello_RAW, nonce_RAW, nonce_size);
-        hello_size += nonce_size;
-        memcpy(hello_RAW + hello_size, cert_RAW, cert_size);
-        hello_size += cert_size;
-        memcpy(hello_RAW + hello_size, pubkey_RAW, pubkey_size);
-        hello_size += pubkey_size;
-        memcpy(hello_RAW + hello_size, sign_RAW, sign_size);
-        hello_size += sign_size;
-        memcpy(hello_RAW + hello_size, nonce_sign_RAW, nonce_sign_size);
-        hello_size += nonce_sign_size;
+        // Concatenate all into hello_value_RAW:
+        size_t hello_value_size = 0;
+        memcpy(hello_value_RAW, nonce_RAW, nonce_size);
+        hello_value_size += nonce_size;
+        memcpy(hello_value_RAW + hello_value_size, certificate, cert_size);
+        hello_value_size += cert_size;
+        memcpy(hello_value_RAW + hello_value_size, nonce_sign_RAW, nonce_sign_size);
+        hello_value_size += nonce_sign_size;
+        // Make hello raw:
+        TLV hello_tlv = to_TLV_fromComponents(SERVER_HELLO, hello_value_size, hello_value_RAW);
+        size_t hello_size = to_RAW_fromTLV(hello_tlv, hello_RAW);
+        // Print nonce:
+        fprintf(stderr, "SEND NONCE ");
+        for (size_t i = 0; i < NONCE_SIZE; i++) {
+            fprintf(stderr, "%02x", nonce[i]);
+        }
         // Pass into input buffer:
-
         state_sec = SERVER_KEY_EXCHANGE_REQUEST_AWAIT;
-        return 0;
+
+        memcpy(buf, hello_RAW, hello_size);
+        return hello_size;
     }
     case CLIENT_KEY_EXCHANGE_REQUEST_SEND: {
         print("SEND KEY EXCHANGE REQUEST");
@@ -130,8 +133,13 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
 }
 
 void output_sec(uint8_t* buf, size_t length) {
-    // This passes it directly to standard output (working like Project 1)
-    return output_io(buf, length);
+    // This passes it directly to standard output (working like Project 1).
+    // We need to keep a temp buffer to store partial TLVs: `output_buffer`.
+    // return output_io(buf, length);
+
+    // Add to output buffer:
+    // memcpy(output_buffer + output_buffer_size, buf, length);
+    // output_buffer_size += length;
 
     switch (state_sec) {
     case SERVER_CLIENT_HELLO_AWAIT: {
@@ -156,7 +164,7 @@ void output_sec(uint8_t* buf, size_t length) {
             break;
         }
         // Ensure the type is correct:
-        if (nonce_tlv.type != 0x01) {
+        if (nonce_tlv.type != NONCE_CLIENT_HELLO) {
             fprintf(stderr, "Error: Unexpected nonce type.\n");
             exit(4);
         }
@@ -176,8 +184,35 @@ void output_sec(uint8_t* buf, size_t length) {
 
         print("RECV SERVER HELLO");
 
-        /* Insert Server Hello receiving logic here */
+        // Attempt to parse the received message:
+        TLV hello_tlv = to_TLV_fromMessage(buf, length);
+        if (!hello_tlv.valid) {
+            break;
+        }
+        // Ensure the type is correct:
+        if (hello_tlv.type != SERVER_HELLO) {
+            fprintf(stderr, "Error: Unexpected message type.\n");
+            exit(4);
+        }
+        // Unpack hello_tlv into nonce, certificate, and signed nonce:
+        
+        // Extract and check certificate:
+        TLV certificate_tlv = to_TLV_fromMessage(hello_tlv.value, hello_tlv.length);
+        if (!certificate_tlv.valid) {
+            break;
+        }
+            // Ensure the type is correct:
+        if (certificate_tlv.type != CERTIFICATE) {
+            fprintf(stderr, "Error: Unexpected nonce type.\n");
+            exit(4);
+        }
+            // Print:
+        fprintf(stderr, "RECV CERT ");
 
+
+        // Extract and check signed nonce:
+
+        // Move to next state:
         state_sec = CLIENT_KEY_EXCHANGE_REQUEST_SEND;
         break;
     }

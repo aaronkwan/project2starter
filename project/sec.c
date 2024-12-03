@@ -145,6 +145,8 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         return finished_size;
     }
     case DATA_STATE: {
+        print("SEND DATA");
+
         // Init raw messages:
         uint8_t data_RAW[1012] = {0}; // contains the final tlv
         uint8_t data_value_RAW[1012] = {0}; // contains TLV(IV), TLV(CIPHER), TLV(MAC)
@@ -154,12 +156,13 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         // Read in up to 943 bytes from stdin:
         uint8_t stdin_buffer[1012] = {0};
         size_t stdin_buffer_size = input_io(stdin_buffer, 943);
+        fprintf(stderr, "SEND DATA read: %ld", stdin_buffer_size);
         // Pad with # of bytes missing:
-        size_t padding = (stdin_buffer_size % 16 == 0) ? 0 : 16 - (stdin_buffer_size % 16);
-        for (size_t i = 0; i < padding; i++) {
-            stdin_buffer[stdin_buffer_size + i] = padding;
-        }
-        stdin_buffer_size += padding;
+        // size_t padding = (stdin_buffer_size % 16 == 0) ? 0 : 16 - (stdin_buffer_size % 16);
+        // for (size_t i = 0; i < padding; i++) {
+        //     stdin_buffer[stdin_buffer_size + i] = padding;
+        // }
+        // stdin_buffer_size += padding;
         // Encrypt data:
         size_t cipher_value_size = encrypt_data(stdin_buffer, stdin_buffer_size, iv_RAW, cipher_RAW);
         TLV iv_tlv = to_TLV_fromComponents(INITIALIZATION_VECTOR, IV_SIZE, iv_RAW);
@@ -188,6 +191,7 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         // Make data raw:
         TLV data_tlv = to_TLV_fromComponents(DATA, data_value_size, data_value_RAW);
         size_t data_size = to_RAW_fromTLV(data_tlv, data_RAW);
+        fprintf(stderr, "SEND DATA send: %zu", data_size);
         // Pass into input buffer:
         memcpy(buf, data_RAW, data_size);
         return data_size;

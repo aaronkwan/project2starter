@@ -145,7 +145,15 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         return finished_size;
     }
     case DATA_STATE: {
-        print("SEND DATA");
+        // print("SEND DATA");
+
+        // Read in up to 943 bytes from stdin:
+        uint8_t stdin_buffer[1012] = {0};
+        size_t stdin_buffer_size = input_io(stdin_buffer, (max_length < 943 ? max_length : 943));
+        if (stdin_buffer_size == 0) {
+            return 0;
+        }
+        fprintf(stderr, "SEND DATA read: %ld \n", stdin_buffer_size);
 
         // Init raw messages:
         uint8_t data_RAW[1012] = {0}; // contains the final tlv
@@ -153,16 +161,6 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         uint8_t iv_RAW[1012] = {0}; // (1)
         uint8_t cipher_RAW[1012] = {0}; // (2)
         uint8_t mac_RAW[1012] = {0}; // (3)
-        // Read in up to 943 bytes from stdin:
-        uint8_t stdin_buffer[1012] = {0};
-        size_t stdin_buffer_size = input_io(stdin_buffer, 943);
-        fprintf(stderr, "SEND DATA read: %ld", stdin_buffer_size);
-        // Pad with # of bytes missing:
-        // size_t padding = (stdin_buffer_size % 16 == 0) ? 0 : 16 - (stdin_buffer_size % 16);
-        // for (size_t i = 0; i < padding; i++) {
-        //     stdin_buffer[stdin_buffer_size + i] = padding;
-        // }
-        // stdin_buffer_size += padding;
         // Encrypt data:
         size_t cipher_value_size = encrypt_data(stdin_buffer, stdin_buffer_size, iv_RAW, cipher_RAW);
         TLV iv_tlv = to_TLV_fromComponents(INITIALIZATION_VECTOR, IV_SIZE, iv_RAW);
@@ -191,7 +189,8 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         // Make data raw:
         TLV data_tlv = to_TLV_fromComponents(DATA, data_value_size, data_value_RAW);
         size_t data_size = to_RAW_fromTLV(data_tlv, data_RAW);
-        fprintf(stderr, "SEND DATA send: %zu", data_size);
+        // Print sizes of all components:
+        fprintf(stderr, "SEND DATA DATA %zu IV %zu CIPHER %zu MAC %zu\n", data_size, iv_size, cipher_size, mac_size);
         // Pass into input buffer:
         memcpy(buf, data_RAW, data_size);
         return data_size;

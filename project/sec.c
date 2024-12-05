@@ -307,11 +307,11 @@ void output_sec(uint8_t* buf, size_t length) {
         for (size_t i = 0; i < nonce_tlv.length; i++) {
             fprintf(stderr, "%02x", nonce_tlv.value[i]);
         }
+        // Store the nonce:
+        memcpy(peer_nonce, nonce_tlv.value, nonce_tlv.length);
         // Generate ENC and MAC:
         derive_secret();
         derive_keys();
-        // Store the nonce:
-        memcpy(peer_nonce, nonce_tlv.value, nonce_tlv.length);
         state_sec = CLIENT_KEY_EXCHANGE_REQUEST_SEND;
         break;
     }

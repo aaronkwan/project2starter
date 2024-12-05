@@ -16,6 +16,6 @@ clean:
 zip: clean
 	rm -f project2.zip
 	mkdir -p project
-	cp server.c client.c transport.c io.c security.c sec.c tlv.c transport.h io.h consts.h security.h sec.h tlv.h Makefile project
+	cp README.md server.c client.c transport.c io.c security.c sec.c tlv.c transport.h io.h consts.h security.h sec.h tlv.h Makefile project
 	zip project2.zip project/*
 	rm -rf project

@@ -163,10 +163,12 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         uint8_t mac_RAW[1012] = {0}; // (3)
         // Encrypt data:
         size_t cipher_value_size = encrypt_data(stdin_buffer, stdin_buffer_size, iv_RAW, cipher_RAW);
+        fprintf(stderr, "SEND DATA cipher_value_size: %zu\n", cipher_value_size);
         TLV iv_tlv = to_TLV_fromComponents(INITIALIZATION_VECTOR, IV_SIZE, iv_RAW);
         size_t iv_size = to_RAW_fromTLV(iv_tlv, iv_RAW);
         TLV cipher_tlv = to_TLV_fromComponents(CIPHERTEXT, cipher_value_size, cipher_RAW);
         size_t cipher_size = to_RAW_fromTLV(cipher_tlv, cipher_RAW);
+        fprintf(stderr, "SEND DATA cipher_size: %zu\n", cipher_size);
         // Generate signature of (IV, CIPHER) using MAC (MAC):
             // Create (IV, CIPHER) buffer:
         uint8_t iv_and_cipher[1012] = {0};
@@ -178,6 +180,7 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         hmac(iv_and_cipher, iv_and_cipher_size, mac_value_RAW);
         TLV mac_tlv = to_TLV_fromComponents(MESSAGE_AUTHENTICATION_CODE, MAC_SIZE, mac_value_RAW);
         size_t mac_size = to_RAW_fromTLV(mac_tlv, mac_RAW);
+        fprintf(stderr, "SEND DATA mac_size: %zu\n", mac_size);
         // Append TLV{TLV(IV), TLV(CIPHER), TLV(MAC)} to buffer:
         size_t data_value_size = 0;
         memcpy(data_value_RAW, iv_RAW, iv_size);
@@ -199,7 +202,7 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         real = 510;
         real = data_size;
         fprintf(stderr, "real, max_length: %zu, %zu\n", real, max_length);
-        // memcpy(buf, data_RAW, real);
+        memcpy(buf, data_RAW, real);
         return real;
     }
     default:
@@ -304,6 +307,9 @@ void output_sec(uint8_t* buf, size_t length) {
         for (size_t i = 0; i < nonce_tlv.length; i++) {
             fprintf(stderr, "%02x", nonce_tlv.value[i]);
         }
+        // Generate ENC and MAC:
+        derive_secret();
+        derive_keys();
         // Store the nonce:
         memcpy(peer_nonce, nonce_tlv.value, nonce_tlv.length);
         state_sec = CLIENT_KEY_EXCHANGE_REQUEST_SEND;

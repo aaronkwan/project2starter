@@ -176,7 +176,7 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         memcpy(iv_and_cipher + iv_tlv.length, cipher_tlv.value, cipher_tlv.length);
         size_t iv_and_cipher_size = iv_tlv.length + cipher_tlv.length;
             // Create and populate MAC buffer:
-        uint8_t mac_value_RAW[MAC_SIZE] = {0};
+        uint8_t mac_value_RAW[1012] = {0};
         hmac(iv_and_cipher, iv_and_cipher_size, mac_value_RAW);
         TLV mac_tlv = to_TLV_fromComponents(MESSAGE_AUTHENTICATION_CODE, MAC_SIZE, mac_value_RAW);
         size_t mac_size = to_RAW_fromTLV(mac_tlv, mac_RAW);
@@ -379,13 +379,55 @@ void output_sec(uint8_t* buf, size_t length) {
     case DATA_STATE: {
         if (*buf != DATA)
             exit(4);
-
-        /* Insert Data receiving logic here */
-
-        // PT refers to the resulting plaintext size in bytes
-        // CT refers to the received ciphertext size
-        // fprintf(stderr, "RECV DATA PT %ld CT %hu\n", data_len, cip_len);
-        break;
+        
+        // Get data tlv:
+        TLV data_tlv = to_TLV_fromMessage(buf, length);
+        if (!data_tlv.valid) {
+            break;
+        }
+        // Ensure the type is correct:
+        if (data_tlv.type != DATA) {
+            fprintf(stderr, "Error: Unexpected message type.\n");
+            exit(4);
+        }
+        // Unpack data_tlv into iv, cipher, and mac:
+            // Note: data_tlv.value contains tlvs (1), (2), (3)
+            // Thus, we move by size(tlv) to get to the next tlv.
+        uint8_t data_value_RAW[1012] = {0};
+        memcpy(data_value_RAW, data_tlv.value, data_tlv.length);
+        TLV iv_tlv = to_TLV_fromMessage(data_value_RAW, data_tlv.length);
+        TLV cipher_tlv = to_TLV_fromMessage(data_value_RAW + size(iv_tlv), data_tlv.length - size(iv_tlv));
+        TLV mac_tlv = to_TLV_fromMessage(data_value_RAW + size(iv_tlv) + size(cipher_tlv), data_tlv.length - size(iv_tlv) - size(cipher_tlv));
+        // Ensure the types are correct:
+        if (iv_tlv.type != INITIALIZATION_VECTOR || cipher_tlv.type != CIPHERTEXT || mac_tlv.type != MESSAGE_AUTHENTICATION_CODE) {
+            fprintf(stderr, "Error: Unexpected nonce type.\n");
+            exit(4);
+        }
+        // Verify MAC:
+            // Create (IV, CIPHER) buffer:
+        uint8_t iv_and_cipher[1012] = {0};
+        memcpy(iv_and_cipher, iv_tlv.value, iv_tlv.length);
+        memcpy(iv_and_cipher + iv_tlv.length, cipher_tlv.value, cipher_tlv.length);
+        size_t iv_and_cipher_size = iv_tlv.length + cipher_tlv.length;
+            // Create and populate MAC buffer:
+        uint8_t mac_value_RAW[1012] = {0};
+        hmac(iv_and_cipher, iv_and_cipher_size, mac_value_RAW);
+        if (memcmp(mac_value_RAW, mac_tlv.value, mac_tlv.length) != 0) {
+            fprintf(stderr, "Error: MAC verification failed.\n");
+            exit(4);
+        }
+        fprintf(stderr, "MAC verification successful.\n");
+        // Decrypt data:
+        uint8_t decrypted_data[1012] = {0};
+        size_t decrypted_data_size = decrypt_cipher(cipher_tlv.value, cipher_tlv.length, iv_tlv.value, decrypted_data);
+        fprintf(stderr, "RECV DATA decrypted_data_size: %zu\n", decrypted_data_size);
+        // Print decrypted data:
+        fprintf(stderr, "RECV DATA ");
+        for (size_t i = 0; i < decrypted_data_size; i++) {
+            fprintf(stderr, "%02x", decrypted_data[i]);
+        }
+        // Put data into output buffer:
+        output_io(decrypted_data, decrypted_data_size);
     }
     default:
         break;

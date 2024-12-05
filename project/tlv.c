@@ -45,7 +45,9 @@ TLV to_TLV_fromComponents(uint8_t type, size_t length, const uint8_t *value) {
     // Assign fields:
     tlv.type = type;
     tlv.length = length;
-    memcpy(tlv.value, value, length);
+    if (length > 0) {
+        memcpy(tlv.value, value, length);
+    }
     tlv.valid = true;
     return tlv;
 }

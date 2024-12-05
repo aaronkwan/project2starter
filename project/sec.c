@@ -192,8 +192,15 @@ ssize_t input_sec(uint8_t* buf, size_t max_length) {
         // Print sizes of all components:
         fprintf(stderr, "SEND DATA DATA %zu IV %zu CIPHER %zu MAC %zu\n", data_size, iv_size, cipher_size, mac_size);
         // Pass into input buffer:
-        memcpy(buf, data_RAW, data_size);
-        return data_size;
+        // memcpy(buf, data_RAW, data_size);
+        // return data_size;
+        size_t real = max_length < data_size ? max_length : data_size;
+        real = (640 + 320) / 2;
+        real = 510;
+        real = data_size;
+        fprintf(stderr, "real, max_length: %zu, %zu\n", real, max_length);
+        // memcpy(buf, data_RAW, real);
+        return real;
     }
     default:
         return 0;

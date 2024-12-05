@@ -1,5 +1,6 @@
 CC=gcc
 CFLAGS=-s -lcrypto
+# CFLAGS=-lcrypto -g -fsanitize=address,undefined -fstack-protector-strong -Wall -Wextra -pedantic
 
 all: clean build
 
